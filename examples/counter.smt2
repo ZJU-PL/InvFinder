@@ -1,0 +1,10 @@
+; Unsigned 8-bit counter: its least interval inductive invariant is [0, 10].
+(set-logic HORN)
+(declare-fun inv ((_ BitVec 8)) Bool)
+(assert (inv #x00))
+(assert (forall ((x (_ BitVec 8)) (next (_ BitVec 8)))
+  (=> (and (inv x) (bvult x #x0a) (= next (bvadd x #x01)))
+      (inv next))))
+(assert (forall ((x (_ BitVec 8)))
+  (=> (inv x) (bvule x #x0a))))
+(check-sat)

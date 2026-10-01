@@ -1,0 +1,2 @@
+# Preserve the imported inputs exactly as fingerprinted in the manifest.
+benchmarks/efmc/**/*.smt2 -text -whitespace
