@@ -3,3 +3,9 @@
 __pycache__/
 *.pyc
 .DS_Store
+compile_commands.json
+.codex
+.claude
+.qorder
+.opencode
+.cache
