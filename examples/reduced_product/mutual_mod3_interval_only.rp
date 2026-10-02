@@ -1,0 +1,5 @@
+RP1
+var	x	xp	4
+pre	(= x #x0)
+trans	(= xp (ite (= x #xf) #x1 (ite (not (= (bvurem x #x3) #x0)) #xf (ite (bvult x #xc) (bvadd x #x3) x))))
+range	unsigned_x	4	x	xp

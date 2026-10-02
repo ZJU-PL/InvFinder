@@ -1,10 +1,10 @@
 # InvFinder
 
-InvFinder computes best inductive invariants for fixed bit-vector templates and uses sound auxiliary invariants to strengthen k-induction. Its C++ API represents formulas, models, quantifiers, and solver queries directly with Z3.
+InvFinder computes best inductive invariants for fixed bit-vector templates and reduced products, and uses sound auxiliary invariants to strengthen k-induction. Its C++ API represents formulas, models, quantifiers, and solver queries directly with Z3.
 
 ## Build and test
 
-Requirements: CMake 3.17+, a C++17 compiler, and matching Z3 C++ headers/library. Use Z3 4.12.2 for fixed-version experiment runs; Z3 4.13.4 is also supported. Python 3.9+ enables CLI tests and experiment scripts; synthesis requires no Python packages.
+Requirements: CMake 3.17+, a C++17 compiler, matching Z3 C++ headers/library, and Boost.Multiprecision headers. Use Z3 4.12.2 for fixed-version experiment runs; Z3 4.13.4 is also supported. Python 3.9+ enables CLI tests and experiment scripts; synthesis requires no Python packages.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -63,6 +63,29 @@ Quantified synthesis queries enable Z3's model-based quantifier instantiation (`
 `--iterations N` (or `-I N`) caps synthesis iterations. The default is `unlimited`, also written `-1`; a limit of zero returns top without solver calls. Iteration counts follow the definitions in the verification section.
 
 `Synthesis status: good` means the search completed and established bestness. `partial` means synthesis reached its iteration limit. `bad` means it stopped on a timeout, UNKNOWN, or solver failure. In both incomplete cases the reported invariant remains sound, but optimality is not established. Interrupted chaotic-iteration methods report top until convergence. An empty initial set produces `[bottom][bottom]`. Synthesis concerns initialization and induction, independently of the safety property; a best invariant need not prove safety.
+
+## Reduced-product synthesis
+
+`rp_bestInv` integrates ACR (`quantified`) and CARE (`cegis`) for joint synthesis
+in products of range templates and flat facts. Products include
+`interval+knownbits`, `octagon+knownbits`, `interval+signed+knownbits`, and
+`interval+congruence:3`.
+
+```sh
+./build/rp_bestInv examples/reduced_product/mutual_interval_bits.smt2 \
+  --domain interval+knownbits --method cegis --certify
+./build/rp_synth examples/reduced_product/mutual_interval_mod3.rp --method quantified --certify
+```
+
+The first example yields `0 <=u x <=u 10 AND bit0(x) = 0`, whereas each component
+alone yields TOP. JSON output distinguishes completion, soundness, and independent
+bestness certification. Interrupted runs retain a sound invariant. Exit codes are
+0 (complete), 3 (incomplete), and 2 (input/validation error).
+
+The native `ReducedProductInvariant` API is in [include/reduced_product.h](include/reduced_product.h);
+link target `invfinder_rp`. Its formula can strengthen `k_induction` through the
+existing auxiliary-invariant API. See [the reduced-product guide](docs/reduced_products.md)
+for options, custom observations, certificate replay, experiments, and proofs.
 
 ## Construct formulas directly
 
@@ -163,7 +186,10 @@ Common-instance analysis compares methods only on their intersection of complete
 
 ## Layout
 
-- `src/invariant.cpp`: synthesis algorithms and template construction.
+- `src/invariant.cpp`: single-domain synthesis algorithms and template construction.
+- `src/reduced_product.cpp`: ACR, CARE, semantic reduction, and bestness certificates.
+- `include/reduced_product.h`: native Z3 reduced-product adapter.
+- `docs/`: reduced-product usage and algorithm notes.
 - `src/transition_system.cpp`: native-Z3 CHC reader and state validation.
 - `src/k_induction.cpp`: bounded k-induction with validated auxiliary invariants.
 - `src/*_main.cpp`: command-line programs.

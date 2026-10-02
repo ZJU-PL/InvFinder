@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks for common sets and exact bound metrics."""
 import unittest
+import json
 import summarize
 
 
@@ -11,6 +12,24 @@ def row(file, method, *, complete=True, seconds=2, calls=10, info='[#x00][#x0a]'
 
 
 class AnalysisTests(unittest.TestCase):
+    def test_reduced_product_common_checks_ranges_and_enabled_facts(self):
+        def product(method, lower=0, enabled=True, constant=0, complete=True):
+            info = json.dumps({'bottom': False, 'ranges': [{'label': 'x', 'lower': str(lower), 'upper': '10'}],
+                               'flats': [{'label': 'bit0', 'enabled': enabled, 'constant': str(constant)}]})
+            result = row('a', method, info=info, complete=complete)
+            result.update(Mode='reduced-product', Domain='interval+knownbits')
+            return result
+        _, output = summarize.summarize([product('acr'), product('care')], 'common', ['acr', 'care'])
+        self.assertTrue(all(record[4] == 1 for record in output))
+        for other in (product('care', lower=1), product('care', enabled=False), product('care', constant=1)):
+            with self.assertRaisesRegex(ValueError, 'disagree'):
+                summarize.summarize([product('acr'), other], 'common', ['acr', 'care'])
+        # Different anchor constants for TOP factors describe the same tuple.
+        summarize.summarize([product('acr', enabled=False), product('care', enabled=False, constant=1)],
+                            'common', ['acr', 'care'])
+        _, output = summarize.summarize([product('acr'), product('care', complete=False)], 'common', ['acr', 'care'])
+        self.assertTrue(all(record[4] == 0 for record in output))
+
     def test_common_counts_and_excludes_timeout(self):
         rows = [row('a', 'm1', seconds=3, calls=6), row('a', 'm2', seconds=1, calls=4),
                 row('b', 'm1', seconds=30), row('b', 'm2', complete=False, info='TIMEOUT')]

@@ -40,7 +40,8 @@ def main():
                         help="Synthesis configuration: rq1 comparisons, rq2 widths, or rq3 ablation; uses every supplied input")
     parser.add_argument("-O", "--output", required=True, type=Path)
     parser.add_argument("-T", "--timeout", type=float, default=60)
-    parser.add_argument("--mode", choices=["synthesis", "verification"], default="synthesis")
+    parser.add_argument("--mode", choices=["synthesis", "verification", "reduced-product"], default="synthesis")
+    parser.add_argument("--certify", action="store_true", help="Independently certify reduced-product bestness")
     parser.add_argument("--max-k", type=int, default=64)
     parser.add_argument("--synthesis-timeout", type=float, default=10)
     parser.add_argument("-I", "--inv-iterations", "--iterations", type=iteration_limit, default=-1,
@@ -52,8 +53,12 @@ def main():
             parser.error("--suite requires synthesis mode and cannot be combined with --domains/--methods")
         args.domains, args.methods = SUITES[args.suite]
     else:
-        args.domains = args.domains or "interval"
-        args.methods = args.methods or "efsolve,bitwise,bounded,optimal,fixbsrh,bilater"
+        args.domains = args.domains or ("interval+knownbits" if args.mode == "reduced-product" else "interval")
+        args.methods = args.methods or ("quantified,cegis" if args.mode == "reduced-product" else "efsolve,bitwise,bounded,optimal,fixbsrh,bilater")
+    if args.certify and args.mode != "reduced-product":
+        parser.error("--certify requires reduced-product mode")
+    if args.mode == "reduced-product" and args.inv_iterations != -1:
+        parser.error("reduced-product mode uses its solver/candidate budgets instead of --iterations")
     if not math.isfinite(args.timeout) or (args.timeout < 0 and args.timeout != -1):
         parser.error("timeout must be nonnegative or -1")
     if not math.isfinite(args.synthesis_timeout) or (args.synthesis_timeout < 0 and args.synthesis_timeout != -1):
@@ -88,8 +93,10 @@ def main():
                         command += ["--max-k", str(args.max_k), "--synthesis-timeout", str(args.synthesis_timeout)]
                         if domain != "none":
                             command += ["--inv-iterations", str(args.inv_iterations)]
-                    else:
+                    elif args.mode == "synthesis":
                         command += ["--iterations", str(args.inv_iterations)]
+                    elif args.certify:
+                        command += ["--certify"]
                     row = dict.fromkeys(COLUMNS, "")
                     row.update(File=str(file), Domain=domain, Method=method, Mode=args.mode)
                     row.update({"Bad Solve": 1, "Calls": 0, "Proved": 0, "Result": "unknown"})
@@ -100,7 +107,16 @@ def main():
                         proc = subprocess.run(command, capture_output=True, text=True,
                                               timeout=None if args.timeout == -1 else args.timeout + 5)
                         parsed = fields(proc.stdout)
-                        if proc.returncode:
+                        if args.mode == "reduced-product" and proc.returncode in (0, 3):
+                            result = json.loads(proc.stdout)
+                            done = result["complete"] and result["sound"] and (not args.certify or result["bestness_certified"])
+                            row["Bad Solve"] = int(not done)
+                            row["Calls"] = result["stats"]["total_calls"]
+                            # Preserve the canonical tuple and categorical statistics for comparison.
+                            row["Info"] = json.dumps(result, separators=(",", ":"))
+                            row["Result"] = "complete" if done else "partial"
+                            row["Time Cost"] = result["stats"]["seconds"]
+                        elif proc.returncode:
                             row["Info"] = "ERROR: " + proc.stderr.strip()
                         elif args.mode == "synthesis":
                             row["Bad Solve"] = int(parsed.get("Synthesis status") != "good")
@@ -116,7 +132,8 @@ def main():
                             row["Info"] = parsed.get("Reason", "Missing result")
                             row["Iterations"] = parsed.get("Invariant iterations", "")
                             row["Auxiliary Status"] = parsed.get("Auxiliary synthesis", "")
-                        row["Time Cost"] = float(parsed["Time used"].removesuffix("s")) if "Time used" in parsed else time.monotonic() - started
+                        if args.mode != "reduced-product" or not row["Time Cost"]:
+                            row["Time Cost"] = float(parsed["Time used"].removesuffix("s")) if "Time used" in parsed else time.monotonic() - started
                     except subprocess.TimeoutExpired:
                         row["Info"] = "TIMEOUT: process exceeded deadline"
                         row["Time Cost"] = time.monotonic() - started

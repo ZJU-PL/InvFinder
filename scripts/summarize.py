@@ -2,6 +2,7 @@
 """Summarize completed runs, common sets, width scaling, or differing-bit metrics."""
 import argparse
 import csv
+import json
 import math
 import re
 import sys
@@ -97,7 +98,20 @@ def common_files(data, methods):
             expected = bounds(selected[0]['Info'])
             if any(bounds(row['Info']) != expected for row in selected[1:]):
                 raise ValueError('completed methods disagree on bounds: ' + file)
+        elif selected[0]['Mode'] == 'reduced-product':
+            expected = product_tuple(selected[0]['Info'])
+            if any(product_tuple(row['Info']) != expected for row in selected[1:]):
+                raise ValueError('completed methods disagree on reduced-product bounds/facts: ' + file)
     return common
+
+
+def product_tuple(info):
+    """Ignore disabled anchor constants: they do not constrain the invariant."""
+    result = json.loads(info)
+    if result['bottom']:
+        return None
+    return (tuple((r['label'], int(r['lower']), int(r['upper'])) for r in result['ranges']),
+            tuple((f['label'], int(f['constant']) if f['enabled'] else None) for f in result['flats']))
 
 
 def totals(rows):

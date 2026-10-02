@@ -1,0 +1,9 @@
+RP1
+var	x	xp	4
+pre	(= x #x0)
+trans	(= xp (ite (bvuge x #xc) #x1 (ite (= (bvand x #x1) #x1) #xf (ite (bvult x #xa) (bvadd x #x2) x))))
+range	unsigned_x	4	x	xp
+flat	bit0	1	((_ extract 0 0) x)	((_ extract 0 0) xp)
+flat	bit1	1	((_ extract 1 1) x)	((_ extract 1 1) xp)
+flat	bit2	1	((_ extract 2 2) x)	((_ extract 2 2) xp)
+flat	bit3	1	((_ extract 3 3) x)	((_ extract 3 3) xp)

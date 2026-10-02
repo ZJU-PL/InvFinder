@@ -1,0 +1,6 @@
+RP1
+var	x	xp	128
+pre	(= x (_ bv5 128))
+trans	(= xp (ite (bvult x (_ bv6 128)) (bvadd x (_ bv1 128)) x))
+range	x	128	x	xp
+flat	bit0	1	((_ extract 0 0) x)	((_ extract 0 0) xp)

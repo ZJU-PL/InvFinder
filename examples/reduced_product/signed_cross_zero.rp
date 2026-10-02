@@ -1,0 +1,6 @@
+RP1
+var	x	xp	4
+pre	(= x #x9)
+trans	(= xp (ite (bvslt x #x3) (bvadd x #x1) x))
+range	unsigned	4	x	xp
+range	signed_order	4	(bvxor x #x8)	(bvxor xp #x8)
